@@ -5,13 +5,8 @@ module Main (main, sdlMain) where
 
 import Game.Prelude
 ------------------------------------------------------------------------------
+import qualified Game.Sprite as Sprite
 import qualified Graphics.UI.SDL as SDL
-import qualified Graphics.UI.SDL.Image as Image
-------------------------------------------------------------------------------
-import Game.Sprite
-
-------------------------------------------------------------------------------
-foreign export ccall sdlMain :: IO ()
 
 
 ------------------------------------------------------------------------------
@@ -22,10 +17,12 @@ sdlMain = SDL.withInit [SDL.InitVideo] $ do
     SDL.rawSetCaption (Just "Vicarious") Nothing
     void $ SDL.mapRGB (SDL.surfaceGetPixelFormat screen) 0 0 0 >>=
         SDL.fillRect screen Nothing
-    ghost <- sprite "ghost"
-    draw screen ghost
+    ghost <- Sprite.load "ghost"
+    Sprite.draw screen ghost
     SDL.flip screen
     fix events
+
+foreign export ccall sdlMain :: IO ()
 
 
 ------------------------------------------------------------------------------
@@ -35,8 +32,8 @@ events self = do
     case event of
         SDL.KeyUp k -> flip unless self $ SDL.symKey k == SDL.SDLK_q &&
             SDL.KeyModLeftMeta `elem` SDL.symModifiers k
-        SDL.Quit -> return ()
-        _        -> self
+        SDL.Quit    -> return ()
+        _           -> self
 
 
 ------------------------------------------------------------------------------
