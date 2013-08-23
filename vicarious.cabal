@@ -1,0 +1,21 @@
+name:          vicarious
+version:       0.1.0.0
+homepage:      http://github.com/zimothy/vicarious
+license:       MIT
+license-file:  LICENSE
+author:        Timothy Jones
+maintainer:    Timothy Jones <git@zimothy.com>
+copyright:     (c) 2013 Timothy Jones
+category:      Game
+build-type:    Simple
+cabal-version: >=1.8
+synopsis:      A game for Pixel Jam 2013.
+
+executable vicarious
+  hs-source-dirs: src
+  main-is:        Main.hs
+
+  -- other-modules: 
+
+  build-depends:       base ==4.6.*
+
