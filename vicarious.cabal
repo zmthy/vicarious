@@ -20,19 +20,23 @@ executable vicarious
   main-is:            Game.hs
   default-extensions: NoImplicitPrelude
   default-language:   Haskell2010
+  pkgconfig-depends:  sdl
+  c-sources:          SDL_main.c
 
   if flag(development)
-    ghc-options: -Wall
+    ghc-options: -Wall -no-hs-main
   else
-    ghc-options: -Wall -Werror -O2 -funbox-strict-fields
+    ghc-options: -Wall -Werror -O2 -funbox-strict-fields -no-hs-main
 
   other-modules:
     Game.Prelude
+    Game.Sprite
 
   build-depends:
     base          >= 4.6.0 && < 4.7,
     bifunctors    >= 3.2.0 && < 3.3,
     contravariant >= 0.4.4 && < 0.5,
     lens          >= 3.9.0 && < 3.10,
-    SDL           >= 0.6.5 && < 0.7
+    SDL           >= 0.6.5 && < 0.7,
+    SDL-image     >= 0.6.1 && < 0.7
 

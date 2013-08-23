@@ -43,9 +43,10 @@ import Control.Category as Prelude
 import Control.Lens as Prelude hiding (lmap, rmap, (<~))
 import Control.Monad as Prelude
 import Data.Bifunctor.Apply as Prelude hiding (first, second, (<<$>>))
-import Data.Functor.Contravariant as Prelude
 import Data.Either as Prelude
-import Data.Foldable as Prelude (concat, foldl, foldr)
+import Data.Foldable as Prelude (concat, elem, notElem, foldl, foldr)
+import Data.Function as Prelude (fix)
+import Data.Functor.Contravariant as Prelude
 import Data.Maybe as Prelude
 import Data.Monoid as Prelude
 import Debug.Trace as Prelude

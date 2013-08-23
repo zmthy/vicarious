@@ -1,0 +1,3 @@
+:set -isrc -XNoImplicitPrelude
+:def run const . return $ ":! cabal build && dist/build/hunt/hunt"
+
