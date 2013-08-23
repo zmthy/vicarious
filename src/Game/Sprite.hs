@@ -24,10 +24,19 @@ import Graphics.UI.SDL (Surface, rectH, rectW)
 
 ------------------------------------------------------------------------------
 data Sprite = Sprite
-    { position :: (Int, Int)
-    , size     :: (Int, Int)
-    , image    :: Surface
+    { spos   :: (Int, Int)
+    , ssize  :: (Int, Int)
+    , simage :: Surface
     }
+
+position :: Lens' Sprite (Int, Int)
+position f sprite = fmap (\p -> sprite { spos = p }) $ f (spos sprite)
+
+size :: Lens' Sprite (Int, Int)
+size f sprite = fmap (\s -> sprite { ssize = s }) $ f (ssize sprite)
+
+image :: Lens' Sprite Surface
+image f sprite = fmap (\i -> sprite { simage = i }) $ f (simage sprite)
 
 
 ------------------------------------------------------------------------------
@@ -41,6 +50,6 @@ load name = do
 ------------------------------------------------------------------------------
 -- | Draws the sprite to the surface.
 draw :: Surface -> Sprite -> IO ()
-draw screen sprite = void $ SDL.blitSurface (image sprite) Nothing screen $
-    Just $ uncurry (uncurry SDL.Rect (position sprite)) (size sprite)
+draw screen sprite = void $ SDL.blitSurface (sprite^.image) Nothing screen $
+    Just $ uncurry (uncurry SDL.Rect (sprite^.position)) (sprite^.size)
 
