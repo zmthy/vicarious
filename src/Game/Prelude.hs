@@ -22,11 +22,6 @@ module Game.Prelude
     , lcontramap
     , rmap
 
-      -- * Nested application
-    , (<<$>>)
-    , (<<*>>)
-    , (<<**>>)
-
       -- * Debug
     , traceId
     , traceM
@@ -127,37 +122,6 @@ lcontramap = flip dimap id
 -- on multi-functors, particularly bifunctors (such as functions, or pairs).
 rmap :: Functor f => (a -> b) -> f a -> f b
 rmap = map
-
-
-------------------------------------------------------------------------------
--- | Nested Functor map.
-mapmap :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
-mapmap = map . map
-
-
-------------------------------------------------------------------------------
--- | Operator synonym for 'mapmap'.
-(<<$>>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
-(<<$>>) = mapmap
-
-infixl 4 <<$>>
-
-
-------------------------------------------------------------------------------
--- | Nested Applicative application.
-(<<*>>) :: (Applicative f, Applicative g)
-      => f (g (a -> b)) -> f (g a) -> f (g b)
-(<<*>>) = (<*>) . map (<*>)
-
-infixl 4 <<*>>
-
-
-------------------------------------------------------------------------------
-(<<**>>) :: (Applicative f, Applicative g)
-       => f (g a) -> f (g (a -> b)) -> f (g b)
-(<<**>>) = flip (<<*>>)
-
-infixl 4 <<**>>
 
 
 ------------------------------------------------------------------------------
