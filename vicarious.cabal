@@ -29,6 +29,8 @@ executable vicarious
     ghc-options: -Wall -Werror -O2 -funbox-strict-fields -no-hs-main
 
   other-modules:
+    Game.Direction
+    Game.Events
     Game.Prelude
     Game.Sprite
 
