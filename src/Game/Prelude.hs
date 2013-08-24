@@ -9,9 +9,6 @@ module Game.Prelude
     , iff
     , (?)
 
-      -- * Numbers
-    , (%)
-
       -- * Composition
     , owl
     , dot
@@ -42,10 +39,10 @@ import Control.Arrow as Prelude
 import Control.Category as Prelude
 import Control.Lens as Prelude hiding (lmap, rmap, (<~))
 import Control.Monad as Prelude
+import Control.Monad.State as Prelude
 import Data.Bifunctor.Apply as Prelude hiding (first, second, (<<$>>))
 import Data.Either as Prelude
 import Data.Foldable as Prelude (concat, elem, notElem, foldl, foldr)
-import Data.Function as Prelude (fix)
 import Data.Functor.Contravariant as Prelude
 import Data.Maybe as Prelude
 import Data.Monoid as Prelude
@@ -66,14 +63,6 @@ iff c t e = if c then t else e
 (?) = dot flip flip iff
 
 infix 1 ?
-
-
-------------------------------------------------------------------------------
--- | Modulo of non-integrals.
-(%) :: (Num a, Ord a) => a -> a -> a
-a % b = if a > b then a - b else a
-
-infixl 8 %
 
 
 ------------------------------------------------------------------------------

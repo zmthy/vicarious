@@ -12,6 +12,9 @@ module Game.Sprite
 
     -- * Rendering sprites
     , draw
+
+    -- * Manipulating sprites
+    , move
     ) where
 
 import Game.Prelude
@@ -30,19 +33,19 @@ data Sprite = Sprite
     }
 
 position :: Lens' Sprite (Int, Int)
-position f sprite = fmap (\p -> sprite { spos = p }) $ f (spos sprite)
+position f sprite = map (\p -> sprite { spos = p }) $ f (spos sprite)
 
 size :: Lens' Sprite (Int, Int)
-size f sprite = fmap (\s -> sprite { ssize = s }) $ f (ssize sprite)
+size f sprite = map (\s -> sprite { ssize = s }) $ f (ssize sprite)
 
 image :: Lens' Sprite Surface
-image f sprite = fmap (\i -> sprite { simage = i }) $ f (simage sprite)
+image f sprite = map (\i -> sprite { simage = i }) $ f (simage sprite)
 
 
 ------------------------------------------------------------------------------
 load :: String -> IO Sprite
 load name = do
-    img  <- Image.load ("media/" <> name <> ".png")
+    img  <- Image.load ("media/sprites/" <> name <> ".png")
     rect <- SDL.getClipRect img
     return $ Sprite (0, 0) (rectW rect, rectH rect) img
 
@@ -52,4 +55,9 @@ load name = do
 draw :: Surface -> Sprite -> IO ()
 draw screen sprite = void $ SDL.blitSurface (sprite^.image) Nothing screen $
     Just $ uncurry (uncurry SDL.Rect (sprite^.position)) (sprite^.size)
+
+
+------------------------------------------------------------------------------
+move :: (Int, Int) -> Sprite -> Sprite
+move (x, y) = position %~ bimap (+ x) (+ y)
 

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+images=`find . | grep png`
+for image in $images; do
+    if [[ $image != ./src* ]]; then
+        rm $image
+    fi
+done
+
