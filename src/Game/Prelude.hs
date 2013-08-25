@@ -24,6 +24,7 @@ module Game.Prelude
 
       -- * Debug
     , traceId
+    , traceF
     , traceM
     , traceShowM
     ) where
@@ -39,8 +40,10 @@ import Data.Bifunctor.Apply as Prelude hiding (first, second, (<<$>>))
 import Data.Either as Prelude
 import Data.Foldable as Prelude (concat, elem, notElem, foldl, foldr)
 import Data.Functor.Contravariant as Prelude
+import Data.Int as Prelude
 import Data.Maybe as Prelude
 import Data.Monoid as Prelude
+import Data.Word as Prelude
 import Debug.Trace as Prelude
 import Prelude
     hiding (concat, elem, notElem, foldl, foldr, id, map, (++), (.))
@@ -128,6 +131,13 @@ rmap = map
 -- | Shows the value and evaluates to it.
 traceId :: Show a => a -> a
 traceId = join traceShow
+
+
+------------------------------------------------------------------------------
+-- | Traces the result of applying the function to the value, then evaluates
+-- to the value.
+traceF :: Show b => (a -> b) -> a -> a
+traceF f a = traceShow (f a) a
 
 
 ------------------------------------------------------------------------------

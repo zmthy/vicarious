@@ -3,6 +3,8 @@
 module Game.Events
     (
       isQuit
+    , isSpace
+    , mouseMove
     , direction
     ) where
 
@@ -17,9 +19,24 @@ import Graphics.UI.SDL.Keysym
 
 ------------------------------------------------------------------------------
 isQuit :: Event -> Bool
-isQuit Quit      = True
-isQuit (KeyUp k) = symKey k == SDLK_q && KeyModLeftMeta `elem` symModifiers k
-isQuit _         = False
+isQuit event = case event of
+    Quit      -> True
+    KeyDown k -> symKey k == SDLK_q && KeyModLeftMeta `elem` symModifiers k
+    _         -> False
+
+
+------------------------------------------------------------------------------
+isSpace :: Event -> Bool
+isSpace event = case event of
+    KeyDown k -> symKey k == SDLK_SPACE
+    _         -> False
+
+
+------------------------------------------------------------------------------
+mouseMove :: Event -> Maybe (Word16, Word16, Int16, Int16)
+mouseMove event = case event of
+    MouseMotion a b c d -> Just (a, b, c, d)
+    _                   -> Nothing
 
 
 ------------------------------------------------------------------------------

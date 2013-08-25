@@ -1,7 +1,0 @@
-#!/bin/bash
-
-images=`find ./src | grep png`
-for image in $images; do
-    convert $image -scale $100% ${image:6}
-done
-

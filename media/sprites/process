@@ -1,0 +1,29 @@
+#!/bin/bash
+
+images=`find ./src | grep png`
+for image in $images; do
+    convert $image -scale $100% ${image:6}
+done
+
+convert src/road/ghost.png -channel alpha -evaluate divide 2 \
+    -scale $100% road/ghost.png
+for i in {1..8}; do
+    let rev=9-$i
+    let div=2*$rev
+    convert src/road/ghost.png -channel alpha -evaluate divide \
+        $div -scale $100% road/ghost/$i.png
+done
+
+convert road/pause.png -channel alpha -evaluate divide 2 \
+    road/pause.png
+convert road/in.png -channel alpha -evaluate divide 2 road/in.png
+convert road/pull.png -channel alpha -evaluate divide 2 road/pull.png
+
+for image in road/get/*; do
+    convert $image -channel alpha -evaluate divide 2 $image
+done
+
+for image in road/cast/*; do
+    convert $image -channel alpha -evaluate divide 2 $image
+done
+
