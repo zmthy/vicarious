@@ -23,10 +23,15 @@ pixel = 4
 
 
 ------------------------------------------------------------------------------
+fishStart :: Int
+fishStart = 100
+
+
+------------------------------------------------------------------------------
 -- | The real main function.  Sets up SDL and starts the game.
 sdlMain :: IO ()
 sdlMain = SDL.withInit [SDL.InitVideo] $ do
-    screen <- uncurry SDL.setVideoMode (scale (256, 160)) 0 [SDL.HWSurface]
+    screen <- uncurry SDL.setVideoMode (960, 540) 0 [SDL.HWSurface, SDL.Fullscreen]
     SDL.rawSetCaption (Just "Vicarious") Nothing
 
     back <- Sprite.load "road/background"
@@ -48,14 +53,16 @@ sdlMain = SDL.withInit [SDL.InitVideo] $ do
     let rmove = map . Sprite.move $ scale (134, 37)
     roda  <- gload rmove "get" 6
     casta <- gload rmove "cast" 10
+    lossa <- gload rmove "break" 5
     gp <- rmove $ Sprite.load "road/pause"
     gc <- rmove $ Sprite.load "road/in"
     gy <- rmove $ Sprite.load "road/pull"
+    gb <- rmove $ Sprite.load "road/break"
 
     let bg     = Background back on off bgt
         medic  = Paramedic p1 pt p2
-        start  = Game ghost
-        assets = Assets bg medic $ Ghost fadea roda casta gp gc gy
+        start  = Game ghost DUp 0 0 fishStart
+        assets = Assets bg medic $ Ghost fadea roda casta gp gc gy lossa gb
 
     render screen [bgt, on, p1, back]
 
@@ -68,11 +75,47 @@ foreign export ccall sdlMain :: IO ()
 
 ------------------------------------------------------------------------------
 data Game = Game
-    { gplayer  :: Sprite
+    { gplayer     :: Sprite
+    , gdirection  :: Direction
+    , ghorizontal :: Int16
+    , gvertical   :: Int16
+    , gfish        :: Int
     }
+
+instance Show Game where
+    show g = "Game dir " <> show (gdirection g) <> " hori " <> show (ghorizontal g) <> " vert " <> show (gvertical g)
+
+data Direction = DUp | DRight | DDown | DLeft
+    deriving (Eq, Show)
+
+instance Enum Direction where
+    fromEnum DUp    = 0
+    fromEnum DRight = 1
+    fromEnum DDown  = 2
+    fromEnum DLeft  = 3
+
+    toEnum i = case i `rem` 4 of
+        0 -> DUp
+        1 -> DRight
+        2 -> DDown
+        _ -> DLeft
+
 
 player :: Lens' Game Sprite
 player f game = map (\g -> game { gplayer = g }) $ f (gplayer game)
+
+direction :: Lens' Game Direction
+direction f game = map (\d -> game { gdirection = d }) $ f (gdirection game)
+
+horizontal :: Lens' Game Int16
+horizontal f game = map (\h -> game { ghorizontal = h }) $ f (ghorizontal game)
+
+vertical :: Lens' Game Int16
+vertical f game = map (\v -> game { gvertical = v }) $ f (gvertical game)
+
+fish :: Lens' Game Int
+fish f game = map (\x -> game { gfish = x }) $ f (gfish game)
+
 
 {-arrows :: Lens' Game Direction-}
 {-arrows f game = map (\a -> game { garrows = a }) $ f (garrows game)-}
@@ -90,6 +133,8 @@ data Ghost = Ghost
     , pause :: Sprite
     , cast' :: Sprite
     , yank  :: Sprite
+    , loss  :: [Sprite]
+    , done  :: Sprite
     }
 
 
@@ -151,8 +196,7 @@ ghostWire ghost = first (pure Nothing) . Wire.until (Events.isSpace . fst) -->
     chill . Wire.until (Events.isSpace . fst) -->
     first (Just <$> wireFrames 0.05 (rod ghost)) -->
     gsprite pause . for 1 -->
-    first (Just <$> wireFrames 0.05 (cast ghost)) -->
-    wireForever (fishWire ghost)
+    reGhost
   where
     sarr = arr . (. snd)
     chill = sarr (\g -> (Just $ g^.player, g))
@@ -160,15 +204,28 @@ ghostWire ghost = first (pure Nothing) . Wire.until (Events.isSpace . fst) -->
         in (Just $ g'^.player, g')) . Wire.periodically 0.1
     glift = pure . Just
     gsprite f = first $ glift (f ghost)
-
+    reGhost = wireForever $
+        first (Just <$> wireFrames 0.05 (cast ghost)) -->
+        wireForever (fishWire ghost) . Wire.until ((<= 0) . view fish . snd) -->
+        first (Just <$> wireFrames 0.05 (loss ghost)) -->
+        rmap (set fish fishStart) <$> (gsprite done . Wire.until (Events.isSpace . fst))
 
 ------------------------------------------------------------------------------
 fishWire :: Ghost -> Wire () IO (Event, Game) (Maybe Sprite, Game)
-fishWire ghost = (.) (first fishAnim) id
-    {-first (Wire.perform . arr (maybe (return ()) print . Events.mouseMove))-}
+fishWire ghost = (<*>) ((,) <$> fishAnim) . rmap (fish %~ dropFish) .
+    arr $ \(event, game) -> flip (maybe game) (Events.mouseMove event) $
+        \(_, _, dx, dy) -> let (d, l, c, f) = directionTick game dx dy in
+            if f d > c
+                then (fish +~ 12) . (l .~ 0) . (direction %~ succ) $ game
+                else l +~ d $ game
   where
     flift f = pure . Just $ f ghost
-    fishAnim = flift cast' . Wire.wackelkontaktM 0.95 --> flift yank . for 0.1
+    fishAnim = flift cast' . Wire.wackelkontaktM 0.9 --> flift yank . for 0.1
+    directionTick game dx dy = let dir = game^.direction in if dir `elem` [DUp, DDown]
+        then (dy + game^.vertical, vertical, 50, sign dir)
+        else (dx + game^.horizontal, horizontal, 20, sign dir)
+    sign dir = if dir `elem` [DUp, DLeft] then negate else id
+    dropFish fi = if fi > 10 then fi `div` 2 else fi - 1
 
 
 ------------------------------------------------------------------------------

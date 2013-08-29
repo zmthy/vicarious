@@ -16,14 +16,19 @@ done
 
 convert road/pause.png -channel alpha -evaluate divide 2 \
     road/pause.png
-convert road/in.png -channel alpha -evaluate divide 2 road/in.png
 convert road/pull.png -channel alpha -evaluate divide 2 road/pull.png
+convert road/in.png -channel alpha -evaluate divide 2 road/in.png
+convert road/break.png -channel alpha -evaluate divide 2 road/break.png
 
 for image in road/get/*; do
     convert $image -channel alpha -evaluate divide 2 $image
 done
 
 for image in road/cast/*; do
+    convert $image -channel alpha -evaluate divide 2 $image
+done
+
+for image in road/break/*; do
     convert $image -channel alpha -evaluate divide 2 $image
 done
 

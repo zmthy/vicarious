@@ -4,6 +4,7 @@ module Game.Events
     (
       isQuit
     , isSpace
+    , isLostFocus
     , mouseMove
     , direction
     ) where
@@ -30,6 +31,12 @@ isSpace :: Event -> Bool
 isSpace event = case event of
     KeyDown k -> symKey k == SDLK_SPACE
     _         -> False
+
+
+isLostFocus :: Event -> Bool
+isLostFocus event = case event of
+    LostFocus _ -> True
+    _           -> False
 
 
 ------------------------------------------------------------------------------
