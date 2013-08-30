@@ -6,15 +6,20 @@ module Main (main, sdlMain) where
 import Game.Prelude
 ------------------------------------------------------------------------------
 import qualified Control.Wire as Wire
+import qualified Data.Time.Clock as Time
 {-import qualified Game.Direction as Direction-}
 import qualified Game.Events as Events
 import qualified Game.Sprite as Sprite
 import qualified Graphics.UI.SDL as SDL
+import qualified System.Random as Random
 ------------------------------------------------------------------------------
-import Control.Wire (MonadRandom, Session, Time, Wire, for, (-->))
+import Control.Wire (MonadRandom, Time, Wire, for, (-->))
+import Data.Time (UTCTime)
 {-import Game.Direction (Direction)-}
-import Game.Sprite (Sprite, position)
+import Game.Monad
+import Game.Sprite
 import Graphics.UI.SDL (Event, Surface)
+import System.Random (StdGen)
 
 
 ------------------------------------------------------------------------------
@@ -66,8 +71,10 @@ sdlMain = SDL.withInit [SDL.InitVideo] $ do
 
     render screen [bgt, on, p1, back]
 
-    void $ flip runStateT start $
-        eventLoop screen (gameWire assets) Wire.clockSession
+    t <- Time.getCurrentTime
+    gen <- Random.getStdGen
+
+    void $ eventLoop screen t gen start (gameWire assets)
   where scale = twimap (* pixel)
 
 foreign export ccall sdlMain :: IO ()
@@ -156,16 +163,16 @@ data Paramedic = Paramedic
 
 
 ------------------------------------------------------------------------------
-eventLoop :: Surface -> Wire () IO (Event, Game) ([Sprite], Game)
-          -> Session IO -> StateT Game IO ()
-eventLoop screen wire session = do
-    event <- lift SDL.pollEvent
-    (result, wire', session') <- get >>=
-        lift . Wire.stepSession wire session . (event,)
-    flip (either return) result $ \(sprites, game) -> do
-        put game
-        lift $ render screen sprites
-        eventLoop screen wire' session'
+eventLoop :: Surface -> UTCTime -> StdGen -> Game
+          -> Wire () GameM (Event, Game) ([Sprite], Game) -> IO ()
+eventLoop screen t gen game wire = do
+    event <- SDL.pollEvent
+    t'    <- Time.getCurrentTime
+    let dt = realToFrac $ Time.diffUTCTime t' t
+        ((result, wire'), gen') = runGameM gen $ Wire.stepWire wire dt (event, game)
+    flip (either return) result $ \(sprites, game') -> do
+        render screen sprites
+        eventLoop screen t' gen' game' wire'
 
 
 ------------------------------------------------------------------------------
@@ -176,7 +183,7 @@ render screen sprites = do
 
 
 ------------------------------------------------------------------------------
-gameWire :: Assets -> Wire () IO (Event, Game) ([Sprite], Game)
+gameWire :: Assets -> Wire () GameM (Event, Game) ([Sprite], Game)
 gameWire (Assets bg p ghost) = Wire.until (Events.isQuit . fst) >>>
     (\(s, g) ss -> (tape bg : maybeToList s <> ss, g)) <$> ghostWire ghost <*> flatten
         [ shadowWire (light bg) (dark bg)
@@ -188,7 +195,7 @@ gameWire (Assets bg p ghost) = Wire.until (Events.isQuit . fst) >>>
 
 
 ------------------------------------------------------------------------------
-ghostWire :: Ghost -> Wire () IO (Event, Game) (Maybe Sprite, Game)
+ghostWire :: Ghost -> Wire () GameM (Event, Game) (Maybe Sprite, Game)
 ghostWire ghost = first (pure Nothing) . Wire.until (Events.isSpace . fst) -->
     first (Just <$> wireFrames 0.2 (fade ghost)) --> chill . for 2 -->
     (Wire.until (\(_, g) -> g^.player.position._2 <= 37 * pixel) >>>
@@ -211,7 +218,7 @@ ghostWire ghost = first (pure Nothing) . Wire.until (Events.isSpace . fst) -->
         rmap (set fish fishStart) <$> (gsprite done . Wire.until (Events.isSpace . fst))
 
 ------------------------------------------------------------------------------
-fishWire :: Ghost -> Wire () IO (Event, Game) (Maybe Sprite, Game)
+fishWire :: Ghost -> Wire () GameM (Event, Game) (Maybe Sprite, Game)
 fishWire ghost = (<*>) ((,) <$> fishAnim) . rmap (fish %~ dropFish) .
     arr $ \(event, game) -> flip (maybe game) (Events.mouseMove event) $
         \(_, _, dx, dy) -> let (d, l, c, f) = directionTick game dx dy in
@@ -229,14 +236,14 @@ fishWire ghost = (<*>) ((,) <$> fishAnim) . rmap (fish %~ dropFish) .
 
 
 ------------------------------------------------------------------------------
-shadowWire :: Sprite -> Sprite -> Wire () IO a Sprite
+shadowWire :: Sprite -> Sprite -> Wire () GameM a Sprite
 shadowWire on off = wireForever $
     pure on . forRM (15, 25) --> flicker . forRM (0.1, 0.6)
    where flicker = wireForever $ pure off . for 0.1 --> pure on . for 0.1
 
 
 ------------------------------------------------------------------------------
-paramedicWire :: Paramedic -> Wire () IO a Sprite
+paramedicWire :: Paramedic -> Wire () GameM a Sprite
 paramedicWire Paramedic { para1 = p1, paraT = pt, para2 = p2 } =
     wireForever $ thenTransition p1 --> thenTransition p2
   where thenTransition p = pure p . forRM (8, 12) --> pure pt . for 1
@@ -244,7 +251,7 @@ paramedicWire Paramedic { para1 = p1, paraT = pt, para2 = p2 } =
 
 ------------------------------------------------------------------------------
 -- | Produces each sprite for the given amount of time, then inhibits.
-wireFrames :: Time -> [Sprite] -> Wire () IO a Sprite
+wireFrames :: Time -> [Sprite] -> Wire () GameM a Sprite
 wireFrames _ []       = empty
 wireFrames t (s : ss) =
     (fromJust <$> Wire.until isNothing <<<) . Wire.hold (Just s) $
