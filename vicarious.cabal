@@ -44,5 +44,6 @@ executable vicarious
     random        >= 1.0.1 && < 1.1,
     SDL           >= 0.6.5 && < 0.7,
     SDL-image     >= 0.6.1 && < 0.7,
-    time          >= 1.4.0 && < 1.5
+    time          >= 1.4.0 && < 1.5,
+    transformers  >= 0.3.0 && < 0.4
 

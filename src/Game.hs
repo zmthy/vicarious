@@ -6,20 +6,16 @@ module Main (main, sdlMain) where
 import Game.Prelude
 ------------------------------------------------------------------------------
 import qualified Control.Wire as Wire
-import qualified Data.Time.Clock as Time
 {-import qualified Game.Direction as Direction-}
 import qualified Game.Events as Events
 import qualified Game.Sprite as Sprite
 import qualified Graphics.UI.SDL as SDL
-import qualified System.Random as Random
 ------------------------------------------------------------------------------
 import Control.Wire (MonadRandom, Time, Wire, for, (-->))
-import Data.Time (UTCTime)
 {-import Game.Direction (Direction)-}
 import Game.Monad
 import Game.Sprite
 import Graphics.UI.SDL (Event, Surface)
-import System.Random (StdGen)
 
 
 ------------------------------------------------------------------------------
@@ -71,10 +67,7 @@ sdlMain = SDL.withInit [SDL.InitVideo] $ do
 
     render screen [bgt, on, p1, back]
 
-    t <- Time.getCurrentTime
-    gen <- Random.getStdGen
-
-    void $ eventLoop screen t gen start (gameWire assets)
+    runGameMT $ eventLoop screen start (gameWire assets)
   where scale = twimap (* pixel)
 
 foreign export ccall sdlMain :: IO ()
@@ -163,16 +156,15 @@ data Paramedic = Paramedic
 
 
 ------------------------------------------------------------------------------
-eventLoop :: Surface -> UTCTime -> StdGen -> Game
-          -> Wire () GameM (Event, Game) ([Sprite], Game) -> IO ()
-eventLoop screen t gen game wire = do
-    event <- SDL.pollEvent
-    t'    <- Time.getCurrentTime
-    let dt = realToFrac $ Time.diffUTCTime t' t
-        ((result, wire'), gen') = runGameM gen $ Wire.stepWire wire dt (event, game)
+eventLoop :: Surface -> Game
+          -> Wire () GameM (Event, Game) ([Sprite], Game) -> GameMT IO ()
+eventLoop screen game wire = do
+    event           <- lift SDL.pollEvent
+    dt              <- tick
+    (result, wire') <- liftGameM $ Wire.stepWire wire dt (event, game)
     flip (either return) result $ \(sprites, game') -> do
-        render screen sprites
-        eventLoop screen t' gen' game' wire'
+        lift $ render screen sprites
+        eventLoop screen game' wire'
 
 
 ------------------------------------------------------------------------------

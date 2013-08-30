@@ -7,3 +7,5 @@ for image in $images; do
     fi
 done
 
+rm -rf road
+
