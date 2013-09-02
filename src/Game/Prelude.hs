@@ -6,7 +6,7 @@ module Game.Prelude
       module Prelude
 
       -- * Booleans
-    , iff
+    , ifThenElse
     , (?)
 
       -- * Composition
@@ -22,6 +22,10 @@ module Game.Prelude
     , lcontramap
     , rmap
 
+    -- * Monads
+    , (=>>)
+    , (=>=>)
+
       -- * Debug
     , traceId
     , traceF
@@ -30,35 +34,41 @@ module Game.Prelude
     ) where
 
 ------------------------------------------------------------------------------
+import qualified Data.Functor as Functor (fmap)
+------------------------------------------------------------------------------
 import Control.Applicative as Prelude
 import Control.Arrow as Prelude
 import Control.Category as Prelude
-import Control.Lens as Prelude hiding (lmap, rmap, (<~))
-import Control.Monad as Prelude
-import Control.Monad.State as Prelude
-import Data.Bifunctor.Apply as Prelude hiding (first, second, (<<$>>))
+import Control.Lens.Getter as Prelude
+import Control.Lens.Lens as Prelude
+import Control.Lens.Setter as Prelude
+import Control.Lens.Tuple as Prelude
+import Control.Monad as Prelude hiding (fmap)
+import Control.Monad.State as Prelude hiding (fmap)
+import Data.Bifunctor as Prelude hiding (first, second)
 import Data.Either as Prelude
 import Data.Foldable as Prelude (concat, elem, notElem, foldl, foldr)
 import Data.Functor.Contravariant as Prelude
 import Data.Int as Prelude
 import Data.Maybe as Prelude
 import Data.Monoid as Prelude
+import Data.Profunctor as Prelude hiding (WrappedArrow (..), lmap, rmap)
 import Data.Word as Prelude
 import Debug.Trace as Prelude
 import Prelude
-    hiding (concat, elem, notElem, foldl, foldr, id, map, (++), (.))
+    hiding (concat, elem, fmap, notElem, foldl, foldr, id, map, (++), (.))
 
 
 ------------------------------------------------------------------------------
 -- | Function form of if-then-else.
-iff :: Bool -> a -> a -> a
-iff c t e = if c then t else e
+ifThenElse :: Bool -> a -> a -> a
+ifThenElse c t e = if c then t else e
 
 
 ------------------------------------------------------------------------------
--- | Variant of 'iff' with the condition at the end.
+-- | Variant of 'ifThenElse' with the condition at the end.
 (?) :: a -> a -> Bool -> a
-(?) = dot flip flip iff
+(?) = dot flip flip ifThenElse
 
 infix 1 ?
 
@@ -88,7 +98,7 @@ swing = flip . (. flip id)
 ------------------------------------------------------------------------------
 -- | Functor map.
 map :: Functor f => (a -> b) -> f a -> f b
-map = fmap
+map = Functor.fmap
 
 
 ------------------------------------------------------------------------------
@@ -125,6 +135,36 @@ lcontramap = flip dimap id
 -- on multi-functors, particularly bifunctors (such as functions, or pairs).
 rmap :: Functor f => (a -> b) -> f a -> f b
 rmap = map
+
+
+------------------------------------------------------------------------------
+-- | The "passover" monadic operator that retrieves the required value for the
+-- function from an earlier action, passing it over the left argument.
+--
+-- It can be used in the following manner.
+--
+-- > ma >>= mb =>> \a -> ...
+--
+-- The actions are still sequenced from left to right, but the result of the
+-- first action is the one passed to the function k.
+(=>>) :: Monad m => m b -> (a -> m c) -> a -> m c
+(=>>) = (.) . (>>)
+
+infixl 2 =>>
+
+
+------------------------------------------------------------------------------
+-- | A monadic operator that retrieves the required values for the function
+-- from two earlier actions.
+--
+-- It can be used in the following manner.
+--
+-- > ma >>= mb =>=> \a b -> ...
+(=>=>) :: Monad m => m b -> (a -> b -> m c) -> a -> m c
+(=>=>) = (.) . (>>=)
+
+infixl 2 =>=>
+
 
 
 ------------------------------------------------------------------------------

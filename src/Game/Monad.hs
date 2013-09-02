@@ -19,6 +19,7 @@ import Game.Prelude
 import Control.Wire
 import Data.Functor.Identity (Identity (..))
 import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
+import Game.Data
 
 
 ------------------------------------------------------------------------------
@@ -30,6 +31,14 @@ import Data.Time (UTCTime, diffUTCTime, getCurrentTime)
 -- loop.  The inner loop itself can remain pure by using just 'GameM'.
 newtype GameMT m a = GameMT { ungame :: StateT GameState m a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadTrans)
+
+instance Monad m => MonadState Game (GameMT m) where
+    get = GameMT $ use game
+    put = GameMT . (game .=)
+    state f = GameMT $ do
+        (a, s) <- liftM f $ use game
+        game .= s
+        return a
 
 instance Monad m => MonadRandom (GameMT m) where
     getRandom = runRandom random
@@ -51,9 +60,13 @@ type GameM = GameMT Identity
 ------------------------------------------------------------------------------
 -- | The background state of the game.
 data GameState = GameState
-    { gsStdGen   :: StdGen
+    { gsGame     :: Game
+    , gsStdGen   :: StdGen
     , gsLastTime :: UTCTime
     }
+
+game :: Lens' GameState Game
+game f gs = map (\g -> gs { gsGame = g }) $ f (gsGame gs)
 
 lastTime :: Lens' GameState UTCTime
 lastTime f gs = map (\t -> gs { gsLastTime = t }) $ f (gsLastTime gs)
@@ -63,17 +76,17 @@ stdGen f gs = map (\g -> gs { gsStdGen = g }) $ f (gsStdGen gs)
 
 
 ------------------------------------------------------------------------------
-runGameMT :: MonadIO m => GameMT m a -> m a
-runGameMT game = liftIO (liftM2 GameState getStdGen getCurrentTime) >>=
-    evalStateT (ungame game)
+runGameMT :: MonadIO m => Game -> GameMT m a -> m a
+runGameMT g m = liftIO (liftM2 (GameState g) getStdGen getCurrentTime) >>=
+    evalStateT (ungame m)
 
 
 ------------------------------------------------------------------------------
 -- | Lifts a pure game monad into the tranformer.  The resulting transformer
 -- runs the given monad with its own state, then saves the resulting state.
 liftGameM :: Monad m => GameM a -> GameMT m a
-liftGameM game = GameMT $ do
-    (a, s) <- runState (ungame game) `liftM` get
+liftGameM m = GameMT $ do
+    (a, s) <- runState (ungame m) `liftM` get
     put s
     return a
 

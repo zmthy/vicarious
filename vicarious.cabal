@@ -18,7 +18,11 @@ flag development
 executable vicarious
   hs-source-dirs:     src
   main-is:            Game.hs
-  default-extensions: GeneralizedNewtypeDeriving NoImplicitPrelude TupleSections
+  default-extensions:
+    GeneralizedNewtypeDeriving
+    MultiParamTypeClasses
+    NoImplicitPrelude
+    TupleSections
   default-language:   Haskell2010
   pkgconfig-depends:  sdl
   c-sources:          SDL_main.c
@@ -41,6 +45,7 @@ executable vicarious
     lens          >= 3.9.0 && < 3.10,
     mtl           >= 2.1.2 && < 2.2,
     netwire       >= 4.0.7 && < 4.1,
+    profunctors   >= 3.3.0 && < 3.4,
     random        >= 1.0.1 && < 1.1,
     SDL           >= 0.6.5 && < 0.7,
     SDL-image     >= 0.6.1 && < 0.7,

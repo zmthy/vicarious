@@ -6,26 +6,16 @@ module Main (main, sdlMain) where
 import Game.Prelude
 ------------------------------------------------------------------------------
 import qualified Control.Wire as Wire
-{-import qualified Game.Direction as Direction-}
-import qualified Game.Events as Events
 import qualified Game.Sprite as Sprite
 import qualified Graphics.UI.SDL as SDL
 ------------------------------------------------------------------------------
-import Control.Wire (MonadRandom, Time, Wire, for, (-->))
-{-import Game.Direction (Direction)-}
+import Control.Wire (Wire)
+import Game.Assets
+import Game.Data
 import Game.Monad
 import Game.Sprite
+import Game.Wire
 import Graphics.UI.SDL (Event, Surface)
-
-
-------------------------------------------------------------------------------
-pixel :: Int
-pixel = 4
-
-
-------------------------------------------------------------------------------
-fishStart :: Int
-fishStart = 100
 
 
 ------------------------------------------------------------------------------
@@ -67,107 +57,25 @@ sdlMain = SDL.withInit [SDL.InitVideo] $ do
 
     render screen [bgt, on, p1, back]
 
-    runGameMT $ eventLoop screen start (gameWire assets)
+    runGameMT start $ eventLoop screen (gameWire assets)
   where scale = twimap (* pixel)
 
 foreign export ccall sdlMain :: IO ()
 
 
-------------------------------------------------------------------------------
-data Game = Game
-    { gplayer     :: Sprite
-    , gdirection  :: Direction
-    , ghorizontal :: Int16
-    , gvertical   :: Int16
-    , gfish        :: Int
-    }
-
-instance Show Game where
-    show g = "Game dir " <> show (gdirection g) <> " hori " <> show (ghorizontal g) <> " vert " <> show (gvertical g)
-
-data Direction = DUp | DRight | DDown | DLeft
-    deriving (Eq, Show)
-
-instance Enum Direction where
-    fromEnum DUp    = 0
-    fromEnum DRight = 1
-    fromEnum DDown  = 2
-    fromEnum DLeft  = 3
-
-    toEnum i = case i `rem` 4 of
-        0 -> DUp
-        1 -> DRight
-        2 -> DDown
-        _ -> DLeft
-
-
-player :: Lens' Game Sprite
-player f game = map (\g -> game { gplayer = g }) $ f (gplayer game)
-
-direction :: Lens' Game Direction
-direction f game = map (\d -> game { gdirection = d }) $ f (gdirection game)
-
-horizontal :: Lens' Game Int16
-horizontal f game = map (\h -> game { ghorizontal = h }) $ f (ghorizontal game)
-
-vertical :: Lens' Game Int16
-vertical f game = map (\v -> game { gvertical = v }) $ f (gvertical game)
-
-fish :: Lens' Game Int
-fish f game = map (\x -> game { gfish = x }) $ f (gfish game)
-
-
-{-arrows :: Lens' Game Direction-}
-{-arrows f game = map (\a -> game { garrows = a }) $ f (garrows game)-}
-
 
 ------------------------------------------------------------------------------
-data Assets = Assets Background Paramedic Ghost
-
-
-------------------------------------------------------------------------------
-data Ghost = Ghost
-    { fade  :: [Sprite]
-    , rod   :: [Sprite]
-    , cast  :: [Sprite]
-    , pause :: Sprite
-    , cast' :: Sprite
-    , yank  :: Sprite
-    , loss  :: [Sprite]
-    , done  :: Sprite
-    }
-
-
-------------------------------------------------------------------------------
-data Background = Background
-    { static :: Sprite
-    , light  :: Sprite
-    , dark   :: Sprite
-    , tape   :: Sprite
-    }
-
-
-------------------------------------------------------------------------------
-data Paramedic = Paramedic
-    { para1 :: Sprite
-    , paraT :: Sprite
-    , para2 :: Sprite
-    }
-
-
-------------------------------------------------------------------------------
-eventLoop :: Surface -> Game
-          -> Wire () GameM (Event, Game) ([Sprite], Game) -> GameMT IO ()
-eventLoop screen game wire = do
-    event           <- lift SDL.pollEvent
-    dt              <- tick
-    (result, wire') <- liftGameM $ Wire.stepWire wire dt (event, game)
-    flip (either return) result $ \(sprites, game') -> do
+eventLoop :: Surface -> Wire () GameM Event [Sprite] -> GameMT IO ()
+eventLoop screen = fix $ \eloop wire -> do
+    (result, wire') <- lift SDL.pollEvent >>= tick =>=>
+        dot liftGameM (flip $ Wire.stepWire wire)
+    flip (either return) result $ \sprites -> do
         lift $ render screen sprites
-        eventLoop screen game' wire'
+        eloop wire'
 
 
 ------------------------------------------------------------------------------
+-- | Renders the sprites on the surface.
 render :: Surface -> [Sprite] -> IO ()
 render screen sprites = do
     mapM_ (Sprite.draw screen) $ reverse sprites
@@ -175,117 +83,8 @@ render screen sprites = do
 
 
 ------------------------------------------------------------------------------
-gameWire :: Assets -> Wire () GameM (Event, Game) ([Sprite], Game)
-gameWire (Assets bg p ghost) = Wire.until (Events.isQuit . fst) >>>
-    (\(s, g) ss -> (tape bg : maybeToList s <> ss, g)) <$> ghostWire ghost <*> flatten
-        [ shadowWire (light bg) (dark bg)
-        , paramedicWire p
-        , pure $ static bg
-        ]
-  where
-    flatten = flip foldr (pure []) $ (<*>) . (<$>) (:)
-
-
-------------------------------------------------------------------------------
-ghostWire :: Ghost -> Wire () GameM (Event, Game) (Maybe Sprite, Game)
-ghostWire ghost = first (pure Nothing) . Wire.until (Events.isSpace . fst) -->
-    first (Just <$> wireFrames 0.2 (fade ghost)) --> chill . for 2 -->
-    (Wire.until (\(_, g) -> g^.player.position._2 <= 37 * pixel) >>>
-        Wire.hold_ flyUp <|> chill) -->
-    chill . Wire.until (Events.isSpace . fst) -->
-    first (Just <$> wireFrames 0.05 (rod ghost)) -->
-    gsprite pause . for 1 -->
-    reGhost
-  where
-    sarr = arr . (. snd)
-    chill = sarr (\g -> (Just $ g^.player, g))
-    flyUp = sarr (\g -> let g' = player %~ Sprite.move (0, -pixel) $ g
-        in (Just $ g'^.player, g')) . Wire.periodically 0.1
-    glift = pure . Just
-    gsprite f = first $ glift (f ghost)
-    reGhost = wireForever $
-        first (Just <$> wireFrames 0.05 (cast ghost)) -->
-        wireForever (fishWire ghost) . Wire.until ((<= 0) . view fish . snd) -->
-        first (Just <$> wireFrames 0.05 (loss ghost)) -->
-        rmap (set fish fishStart) <$> (gsprite done . Wire.until (Events.isSpace . fst))
-
-------------------------------------------------------------------------------
-fishWire :: Ghost -> Wire () GameM (Event, Game) (Maybe Sprite, Game)
-fishWire ghost = (<*>) ((,) <$> fishAnim) . rmap (fish %~ dropFish) .
-    arr $ \(event, game) -> flip (maybe game) (Events.mouseMove event) $
-        \(_, _, dx, dy) -> let (d, l, c, f) = directionTick game dx dy in
-            if f d > c
-                then (fish +~ 12) . (l .~ 0) . (direction %~ succ) $ game
-                else l +~ d $ game
-  where
-    flift f = pure . Just $ f ghost
-    fishAnim = flift cast' . Wire.wackelkontaktM 0.9 --> flift yank . for 0.1
-    directionTick game dx dy = let dir = game^.direction in if dir `elem` [DUp, DDown]
-        then (dy + game^.vertical, vertical, 50, sign dir)
-        else (dx + game^.horizontal, horizontal, 20, sign dir)
-    sign dir = if dir `elem` [DUp, DLeft] then negate else id
-    dropFish fi = if fi > 10 then fi `div` 2 else fi - 1
-
-
-------------------------------------------------------------------------------
-shadowWire :: Sprite -> Sprite -> Wire () GameM a Sprite
-shadowWire on off = wireForever $
-    pure on . forRM (15, 25) --> flicker . forRM (0.1, 0.6)
-   where flicker = wireForever $ pure off . for 0.1 --> pure on . for 0.1
-
-
-------------------------------------------------------------------------------
-paramedicWire :: Paramedic -> Wire () GameM a Sprite
-paramedicWire Paramedic { para1 = p1, paraT = pt, para2 = p2 } =
-    wireForever $ thenTransition p1 --> thenTransition p2
-  where thenTransition p = pure p . forRM (8, 12) --> pure pt . for 1
-
-
-------------------------------------------------------------------------------
--- | Produces each sprite for the given amount of time, then inhibits.
-wireFrames :: Time -> [Sprite] -> Wire () GameM a Sprite
-wireFrames _ []       = empty
-wireFrames t (s : ss) =
-    (fromJust <$> Wire.until isNothing <<<) . Wire.hold (Just s) $
-    (Just <$> Wire.list ss --> pure Nothing) . Wire.periodically t
-
-
-------------------------------------------------------------------------------
--- | Causes the wire to restart when it inhibits.
-wireForever :: Monad m => Wire e m a b -> Wire e m a b
-wireForever = fix . (-->)
-
-
-------------------------------------------------------------------------------
--- | Produces for a random amount within the given range, then inhibits.
-forRM :: (MonadRandom m, Monoid e) => (Time, Time) -> Wire e m a a
-forRM r = id &&& Wire.noiseRM . pure r >>> Wire.mkState 0 stf
-  where
-    stf dt ((input, endTime), et) = let et' = et + dt in
-        (if et' >= endTime then Left mempty else Right input, et')
-
-
-
-------------------------------------------------------------------------------
-{-update :: Time -> (Event, Game) -> (Either () [Sprite], Game)-}
-{-update dt (event, game) = if Events.isQuit event-}
-    {-then (Left (), game) else lmap Right $ update' dt event game-}
-
-
-------------------------------------------------------------------------------
-{-update' :: Time -> Event -> Game -> ([Sprite], Game)-}
-{-update' _ event game =-}
-    {-(sprites, set arrows arrows' . set player player' $ game)-}
-  {-where-}
-    {-arrows' = game^.arrows <> Events.direction event-}
-    {-player' = Sprite.move (Direction.movement 3 arrows') $ game^.player-}
-    {-back    = background game-}
-    {-sprites = [static back, light back, player']-}
-
-
-------------------------------------------------------------------------------
--- | Cabal doesn't seem to pass -no-hs-main to GHC.  This whole function
--- should be removed once this problem is resolved.
+-- | GHC doesn't seem to recognise -no-hs-mainThis whole function should be
+-- removed once this problem is resolved.
 main :: IO ()
 main = return ()
 
